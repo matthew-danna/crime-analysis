@@ -7,7 +7,21 @@ library(leaflet)
 library(sf)
 library(tigris)
 
+# https://opendata.dc.gov/datasets/89561a4f02ba46cca3c42333425d1b87/explore?location=38.904018%2C-77.012050%2C12.85
+# https://www.arcgis.com/sharing/rest/content/items/89561a4f02ba46cca3c42333425d1b87/info/metadata/metadata.xml?format=default&output=html
+# https://crimecards.dc.gov/
+
+dc.pastyear <- read.csv("https://datagate.dc.gov/search/open/crimes?daterange=1year%20to%20date&details=true&format=csv", stringsAsFactors = FALSE)
+dc.8years <- read.csv("https://datagate.dc.gov/search/open/crimes?daterange=8years&details=true&format=csv", stringsAsFactors = FALSE)
+
+library(data.table)
+dc.test2023 <- fread("https://datagate.dc.gov/search/open/crimes?daterange=1-1-2023,9-12-2023&details=true&format=csv")
+dc.test2023b <- fread("https://datagate.dc.gov/search/open/crimes?daterange=1-1-2023%20to%20date&details=true&format=csv")
+dc.test2022 <- fread("https://datagate.dc.gov/search/open/crimes?daterange=1-1-2022,12-31-2022&details=true&format=csv")
+dc.test2021 <- fread("https://datagate.dc.gov/search/open/crimes?daterange=1-1-2021,12-31-2021&details=true&format=csv")
+
 dc.data2023 <- read.csv("https://opendata.arcgis.com/datasets/89561a4f02ba46cca3c42333425d1b87_5.csv", stringsAsFactors = FALSE) 
+dc.data.past30 <- read.csv("https://opendata.arcgis.com/datasets/dc3289eab3d2400ea49c154863312434_8.csv", stringsAsFactors = FALSE)
 dc.data2022 <- read.csv("https://opendata.arcgis.com/datasets/f9cc541fc8c04106a05a1a4f1e7e813c_4.csv", stringsAsFactors = FALSE)
 dc.data2021 <- read.csv("https://opendata.arcgis.com/datasets/619c5bd17ca2411db0689bb0a211783c_3.csv", stringsAsFactors = FALSE)
 dc.data2020 <- read.csv("https://opendata.arcgis.com/datasets/f516e0dd7b614b088ad781b0c4002331_2.csv", stringsAsFactors = FALSE)
@@ -28,6 +42,12 @@ dc.data.temp <- rbind(dc.data2008, dc.data2009, dc.data2010, dc.data2011, dc.dat
                       dc.data2016, dc.data2017, dc.data2018, dc.data2019, dc.data2020, dc.data2021, dc.data2022, dc.data2023)
 dc.data <- separate(dc.data.temp, REPORT_DAT, into = c("date", "time"), sep = " ")
 dc.data$date <- as.Date(dc.data$date, format = "%Y/%m/%d")
+
+dc.data$year <- substr(dc.data$date, 0, 4)
+dc.data$month <- month(dc.data$date)
+dc.data$day <- day(dc.data$date)
+dc.data$dow <- weekdays(dc.data$date)
+dc.data$hour <- substr(dc.data$time, 0, 2)
 
 unique(dc.data$OFFENSE)
 offense.robbery <- subset(dc.data, dc.data$OFFENSE == 'ROBBERY')
