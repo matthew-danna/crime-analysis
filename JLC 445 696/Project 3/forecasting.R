@@ -34,12 +34,34 @@ dc.data.temp <- dc.data.temp %>%
   select(3:9,12:22)
 dc.data.temp$DATE <- as.Date(dc.data.temp$DATE, format = "%Y/%m/%d")
 dc.data.temp$NEIGHBORHOOD_CLUSTER <- toupper(dc.data.temp$NEIGHBORHOOD_CLUSTER)
+dc.data.temp$HOUR <- substr(dc.data.temp$TIME, 0, 2)
 
 # clean 2023
-dc.data2023 <- separate(dc.data2023.temp, REPORT_DAT, into = c("DATE", "TIME"), sep = ", ")
+dc.data2023.temp2 <- separate(dc.data2023.temp, REPORT_DAT, into = c("DATE", "TIME"), sep = ", ")
+
+# fix times
+dc.data2023.temp3 <- separate(dc.data2023.temp2, TIME, into = c("TIME", "AM.PM"), sep = " ")
+dc.data2023.am <- subset(dc.data2023.temp3, dc.data2023.temp3$AM.PM == 'AM')
+dc.data2023.am$HOUR <- substr(dc.data2023.am$TIME, 0, 2)
+dc.data2023.am$HOUR <- gsub(":", "", dc.data2023.am$HOUR)
+dc.data2023.am$HOUR <- paste("0",dc.data2023.am$HOUR, sep = "")
+dc.data2023.am$HOUR <- str_sub(dc.data2023.am$HOUR, start = -2)
+dc.data2023.am$HOUR <- gsub("12", "00", dc.data2023.am$HOUR)
+
+dc.data2023.pm <- subset(dc.data2023.temp3, dc.data2023.time$AM.PM == 'PM')
+dc.data2023.pm$HOUR <- substr(dc.data2023.pm$TIME, 0, 2)
+dc.data2023.pm$HOUR <- gsub(":", "", dc.data2023.pm$HOUR)
+dc.data2023.pm$HOUR <- as.numeric(dc.data2023.pm$HOUR)
+dc.data2023.pm$HOUR <- dc.data2023.pm$HOUR + 12
+dc.data2023.pm$HOUR <- as.character(dc.data2023.pm$HOUR)
+dc.data2023.pm$HOUR <- gsub("24", "12", dc.data2023.pm$HOUR)
+
+dc.data2023 <- rbind(dc.data2023.am, dc.data2023.pm)
+
 dc.data2023 <- subset(dc.data2023, select = c("CCN", "DATE", "TIME", "SHIFT", "METHOD", "OFFENSE", "BLOCK", "WARD", 
                                               "ANC", "DISTRICT", "PSA", "NEIGHBORHOOD_CLUSTER", "BLOCK_GROUP", 
-                                              "CENSUS_TRACT", "VOTING_PRECINCT", "LATITUDE", "LONGITUDE", "BID"))
+                                              "CENSUS_TRACT", "VOTING_PRECINCT", "LATITUDE", "LONGITUDE", "BID",
+                                              "HOUR"))
 dc.data2023$SHIFT <- toupper(dc.data2023$SHIFT)
 dc.data2023$METHOD <- toupper(dc.data2023$METHOD)
 dc.data2023$OFFENSE <- toupper(dc.data2023$OFFENSE)
@@ -55,7 +77,6 @@ dc.data$YEAR <- substr(dc.data$DATE, 0, 4)
 dc.data$MONTH <- month(dc.data$DATE)
 dc.data$DAY <- day(dc.data$DATE)
 dc.data$DOW <- weekdays(dc.data$DATE)
-dc.data$HOUR <- substr(dc.data$TIME, 0, 2)
 
 ### FIND AN OFFENSE, SHIFT, AND DISTRICT
 unique(dc.data$OFFENSE)
@@ -225,6 +246,8 @@ forecasts <- forecasts %>% left_join(forecasts.tmp, by = "ID")
 
 forecasts$TODAY <- forecasts$TOTAL - forecasts$YESTERDAY
 
+forecasts <- forecasts[c(3,6)]
+
 ### Visuals
 # graph of crime per day with a trend line
 graph.evening <- ggplot(crime.evening, aes(x=DATE, y=COUNT)) + 
@@ -243,7 +266,81 @@ graph.evening +
 total.7days <- round(sum(crime.evening$count) + additional.7days, 0)
 plot(forecast.7days)
 
-##### Add maps??
+##### Add maps
 
-###### Add temporal topology
+## temporal topology
+# Create a summary table
+crime.day.time <- dc.data %>%
+  group_by(DOW, HOUR) %>%
+  summarise(COUNT = n())
+crime.day.time <- subset(crime.day.time, !is.na(crime.day.time$HOUR))
+
+# basic
+ggplot(crime.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile()
+
+# fixed coordinate
+ggplot(crime.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile() + coord_fixed()
+
+# formatted with spaces
+ggplot(crime.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile(color = "white", lwd = 1.5, linetype = 1) + 
+  coord_fixed()
+
+# colors, numbers in cells
+ggplot(crime.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile(color = "black", lwd = .5, linetype = 1) + 
+  geom_text(aes(label = COUNT), color = "white", size = 1.5) +
+  scale_fill_gradient(low = "blue", high = "red") +
+  coord_fixed()
+
+# new number formats
+ggplot(crime.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile(color = "black", lwd = .5, linetype = 1) + 
+  geom_text(aes(label = COUNT), color = "black", size = 2.5) +
+  scale_fill_gradient(low = "blue", high = "red") +
+  guides(fill = guide_colourbar(title = "Crime Count")) +
+  coord_fixed()
+
+# new color ramp, better legend
+ggplot(crime.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile(color = "black", lwd = .5, linetype = 1) + 
+  geom_text(aes(label = COUNT), color = "black", size = 1.5) +
+  scale_fill_gradient(low = "white", high = "red") +
+  guides(fill = guide_colourbar(title = "Crime Count", label = FALSE, ticks = FALSE)) +
+  coord_fixed()
+
+# no legend
+ggplot(crime.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile(color = "black", lwd = .5, linetype = 1) + 
+  geom_text(aes(label = COUNT), color = "black", size = 2.5) +
+  scale_fill_gradient(low = "white", high = "red") +
+  theme(legend.position = "none") +
+  coord_fixed()
+
+# reorganize the days
+ggplot(crime.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile(color = "black", lwd = .5, linetype = 1) + 
+  geom_text(aes(label = COUNT), color = "black", size = 2.5) +
+  scale_fill_gradient(low = "white", high = "red") +
+  theme(legend.position = "none") +
+  coord_fixed() +
+  scale_y_discrete(limits = c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"))
+
+# crime per year
+crime.year.day.time <- dc.data %>%
+  group_by(YEAR, DOW, HOUR) %>%
+  summarise(COUNT = n())
+crime.year.day.time <- subset(crime.year.day.time, !is.na(crime.year.day.time$HOUR))
+
+ggplot(crime.year.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile() + 
+  scale_fill_gradient(low = "white", high = "red") +
+  theme(legend.position = "none") +
+  coord_fixed() +
+  scale_y_discrete(limits = c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")) +
+  theme(axis.text.x = element_text(angle = 90, size = 5)) + 
+  theme(axis.text.y = element_text(size = 5)) + 
+  facet_wrap(~ YEAR, nrow = 6)
 
