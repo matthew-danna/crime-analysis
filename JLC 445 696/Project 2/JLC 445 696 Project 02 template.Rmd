@@ -1,0 +1,33 @@
+---
+title: "JLC 445/696 Project Template"
+author: "Your Name"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document
+---
+
+# Libraries
+```{r}
+
+```
+
+# Data
+```{r}
+
+```
+
+# Maps
+### Map 1: Name it
+```{r}
+
+```
+
+### Map 2: Name this
+```{r}
+
+```
+
+### Map 3: Another name
+```{r}
+
+```
+
