@@ -230,7 +230,8 @@ ggplot(forecasts.day, aes(DATE, TODAY)) +
     y = "Expected Crime Count"
   ) +
   theme(axis.text.x= element_text(angle = 90)) +
-  scale_x_continuous("Date", labels = as.character(forecasts.day$DATE), breaks = forecasts.day$DATE)
+  scale_x_continuous("Date", labels = as.character(forecasts.day$DATE), 
+                     breaks = forecasts.day$DATE)
 
 ### HOTSPOT MAP
 dc.roads <- roads("DC", "District of Columbia")
