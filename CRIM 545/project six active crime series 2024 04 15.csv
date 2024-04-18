@@ -1,0 +1,17 @@
+Sequence,Crime,Date,Time,T Coordinate,Interval,Hunting Ground,Spiders,Suspect Gender,Suspect Race,Victim Count,Victim Gender,Victim Age,Weapon Type,Location,Address,City,County,State,Latitude,Longitude
+1,Sexual Assault,8/6/2005,2145,0,,,10.24,Male,Black,3,Female,13-19,Handgun,Church,7202 S 48th St.,Phoenix,Maricopa,Arizona,33.3811476,-111.9810331
+2,"Sexual Assault, Robbery",8/14/2005,410,8,8,A,3.8,Male,Black,1,UNK,UNK,Handgun,UNK,2425 E Thomas Rd.,Phoenix,Maricopa,Arizona,33.4800947,-112.0309626
+3,Murder,9/8/2005,100,33,25,B,12.3,Male,Black,1,Female,19,Handgun,Apartment Complex,3730 S Mill Ave.,Tempe,Maricopa,Arizona,33.3900865,-111.9424591
+4,Sexual Assault,9/15/2005,940,40,7,A,7.69,Male,Black,1,UNK,UNK,Handgun,UNK,4512 N 40th St.,Phoenix,Maricopa,Arizona,33.5030479,-111.9979869
+5,Sexual Assault,9/20/2005,2230,45,5,F,10.3,Male,Black,2,Female,UNK,Handgun,Park,3100 W Vineard Rd.,Phoenix,Maricopa,Arizona,33.3835661,-112.1289334
+6,"Sexual Assault, Robbery",9/28/2005,2130,53,8,E,8.05,Male,Black,1,UNK,UNK,Handgun,UNK,7202 S Central Ave.,Phoenix,Maricopa,Arizona,33.3811256,-112.0758344
+7,Robbery,9/28/2005,UNK,53,0,C,11.54,Male,Black,1,UNK,UNK,Handgun,Walgreen's,1425 W Baseline Rd.,Tempe,Maricopa,Arizona,33.378269,-111.9643844
+8,Robbery,11/3/2005,2001,89,36,A,5.94,Male,Black,1,UNK,UNK,Handgun,UNK,4019 N 32nd St.,Phoenix,Maricopa,Arizona,33.4941014,-112.0147543
+9,Sexual Assault,11/3/2005,2010,89,0,A,5.87,Male,Black,1,UNK,UNK,Handgun,Parking lot,3131 E Indian School Rd.,Phoenix,Maricopa,Arizona,33.4942635,-112.0163792
+10,Robbery,11/7/2005,2008,93,4,A,4.89,Male,Black,1,UNK,UNK,Handgun,Las Brasas; Little Caesar's; Street,2950 N 32nd St.,Phoenix,Maricopa,Arizona,33.4820697,-112.015462
+11,Murder,12/12/2005,1855,128,35,D,8.45,Male,Black,1,Female,39,Handgun,Fast food parking lot,6005 S 40th St.,Phoenix,Maricopa,Arizona,33.391484,-111.9963101
+12,Robbery,12/13/2005,1600,129,1,E,9.04,Male,Black,1,UNK,UNK,Handgun,UNK,700 E South Mountain Ave.,Phoenix,Maricopa,Arizona,33.3706441,-112.0681607
+13,Murder,2/20/2006,738,198,69,G,19.35,Male,Black,2,"Male, Female","38, 34",Handgun,Street corner snack truck,91st Ave. & Lower Buckeye Rd.,Phoenix,Maricopa,Arizona,33.4212521,-112.2578957
+14,Murder,3/15/2006,2100,221,23,A,5.24,Male,Black,2,Female,20,Handgun,Yoshi's restaurant,4102 N 24th St.,Phoenix,Maricopa,Arizona,33.4953806,-112.0331517
+15,Murder,3/29/2006,0,235,14,A,3.25,Male,Black,1,Female,UNK,Handgun,Parking lot,2502 N 24th St.,Phoenix,Maricopa,Arizona,33.4750748,-112.0327961
+16,Sexual Assault,5/1/2006,2100,268,33,A,4.89,Male,Black,1,UNK,UNK,Handgun,Parking lot,2950 N 32nd St.,Phoenix,Maricopa,Arizona,33.4820697,-112.015462
