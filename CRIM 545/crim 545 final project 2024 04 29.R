@@ -170,7 +170,7 @@ names(forecasts.tmp) <- c("ID", "YESTERDAY")
 forecasts <- forecasts %>% left_join(forecasts.tmp, by = "ID")
 
 forecasts$TODAY <- forecasts$TOTAL - forecasts$YESTERDAY
-
+forecasts <- forecasts[c(2,3,6)]
 
 # subset my forecast data for all prior June's
 
