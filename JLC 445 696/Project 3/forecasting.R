@@ -28,6 +28,7 @@ dc.data2010 <- read.csv("https://opendata.arcgis.com/datasets/fdacfbdda7654e06a1
 dc.data2009 <- read.csv("https://opendata.arcgis.com/datasets/73cd2f2858714cd1a7e2859f8e6e4de4_33.csv", stringsAsFactors = FALSE)
 dc.data2008 <- read.csv("https://opendata.arcgis.com/datasets/180d56a1551c4e76ac2175e63dc0dce9_32.csv", stringsAsFactors = FALSE)
 
+### LEGACY
 # clean 2008-2022
 dc.data.temp <- rbind(dc.data2008, dc.data2009, dc.data2010, dc.data2011, dc.data2012, dc.data2013, dc.data2014, dc.data2015, dc.data2016, dc.data2017, dc.data2018, dc.data2019, dc.data2020, dc.data2021, dc.data2022)
 dc.data.temp <- separate(dc.data.temp, REPORT_DAT, into = c("DATE", "TIME"), sep = " ")
@@ -72,6 +73,12 @@ dc.data2023$DATE <- as.Date(dc.data2023$DATE, format = "%m/%d/%Y")
 
 # merge
 dc.data <- rbind(dc.data.temp, dc.data2023)
+
+#####
+
+dc.data <- rbind()
+
+dc.data <- separate(dc.data.temp, REPORT_DAT, into = c("DATE", "TIME"), sep = " ")
 
 # enrich
 dc.data$YEAR <- substr(dc.data$DATE, 0, 4)
