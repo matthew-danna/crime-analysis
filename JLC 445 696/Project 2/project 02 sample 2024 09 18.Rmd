@@ -1,0 +1,97 @@
+---
+title: "JLC 445/696 Project 2 Template"
+author: "My Name"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, results='hide'}
+# libraries we need
+library(tidyverse)
+library(leaflet)
+library(sf)
+library(tigris)
+library(data.table)
+
+# getting and cleaning the data
+url <- "https://opendata.dc.gov/datasets/DCGIS::crime-incidents-in-"
+years <- c(2008:2024)
+full.urls <- paste0(url, years, ".csv")
+
+dc.data <- data.frame()
+
+for(file in full.urls) {
+  tmp.data <- read.csv(file, stringsAsFactors = FALSE)
+  dc.data <- rbind(tmp.data, dc.data)
+}
+
+dc.data <- separate(dc.data, REPORT_DAT, into = c("DATE", "TIME"),
+                    sep = " ")
+dc.data$DATE <- as.Date(dc.data$DATE, format = "%Y/%m/%d")
+
+dc.data$YEAR <- substr(dc.data$DATE, 0, 4)
+dc.data$MONTH <- month(dc.data$DATE)
+dc.data$MONTHS <- months(dc.data$DATE)
+dc.data$DAY <- day(dc.data$DATE)
+dc.data$DOW <- weekdays(dc.data$DATE)
+dc.data$HOUR <- substr(dc.data$TIME, 0, 2)
+
+dc.data.full <- subset(dc.data, !is.na(dc.data$LATITUDE))
+
+dc.roads <- roads("DC","District of Columbia")
+dc.roads.major <- dc.roads %>% filter(RTTYP %in% c("I", "S", "U"))
+dc.outline <- county_subdivisions("DC", "District of Columbia")
+```
+
+# Map 1
+```{r, echo=FALSE}
+# data subset
+map1 <- subset(dc.data.full, 
+                    dc.data.full$OFFENSE == 'HOMICIDE')
+# map
+ggplot() + 
+  geom_sf(data = dc.outline) +
+  geom_point(aes(x = LONGITUDE, y = LATITUDE), data = map1, 
+             alpha = 0.2, size = 0.5, color = "blue") + 
+  geom_sf(data = dc.roads.major) +
+  theme_void() + 
+  theme(plot.title = element_text(size = 20, hjust=.5), plot.subtitle = element_text(size = 8, hjust=.5, margin=margin(2, 0, 5, 0))) + 
+  labs(title = "DC Homicides", 
+       subtitle = "January 2008- September 2024")
+```
+
+# Map 2
+```{r, echo=FALSE}
+# data subset
+map2 <- subset(dc.data.full, 
+                    dc.data.full$OFFENSE == 'ROBBERY')
+# map
+ggplot() +
+  geom_sf(data = dc.outline) +
+  geom_hex(aes(x = LONGITUDE, y = LATITUDE), data = map2, 
+           bins = 20) +
+  scale_fill_continuous(type = "viridis") +
+  geom_sf(data = dc.roads.major) +
+  theme_void() + 
+  theme(plot.title = element_text(size = 20, hjust=.5), plot.subtitle = element_text(size = 8, hjust=.5, margin=margin(2, 0, 5, 0))) + 
+  labs(title = "DC Robberies", 
+       subtitle = "January 2008- September 2024")
+```
+
+# Map 3
+This is a map of all crimes in D.C. during 2024.
+```{r, message=FALSE, echo=FALSE, warning=FALSE}
+# data subset
+map3 <- subset(dc.data.full, 
+                    dc.data.full$YEAR == '2024')
+# map
+leaflet(map3) %>%
+  addTiles() %>%
+  addMarkers(lng = ~LONGITUDE, lat = ~LATITUDE, 
+             popup = paste(
+               "Crime Type: ", map3$OFFENSE, "<br>",
+               "Date:", map3$DATE), 
+             clusterOptions = markerClusterOptions()) %>%
+  addPolygons(data = dc.outline)
+```
+
