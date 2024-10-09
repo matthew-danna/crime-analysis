@@ -1,0 +1,368 @@
+---
+title: "JLC 445 696 Project 3 Template"
+author: "Your Name"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide'}
+library(tidyverse)
+library(leaflet)
+library(sf)
+library(tigris)
+library(zoo)
+library(aTSA)
+library(tseries)
+library(forecast)
+library(data.table)
+
+url <- "https://opendata.dc.gov/datasets/DCGIS::crime-incidents-in-"
+years <- c(2008:2024)
+full.urls <- paste0(url, years, ".csv")
+dc.data <- data.frame()
+for(file in full.urls) {
+  tmp.data <- read.csv(file, stringsAsFactors = FALSE)
+  dc.data <- rbind(tmp.data, dc.data)
+}
+
+dc.data <- separate(dc.data, REPORT_DAT, into = c("DATE", "TIME"), sep = " ")
+dc.data$DATE <- as.Date(dc.data$DATE, format = "%Y/%m/%d")
+dc.data$YEAR <- substr(dc.data$DATE, 0, 4)
+dc.data$MONTH <- month(dc.data$DATE)
+dc.data$MONTHS <- months(dc.data$DATE)
+dc.data$DAY <- day(dc.data$DATE)
+dc.data$DOW <- weekdays(dc.data$DATE)
+dc.data$HOUR <- substr(dc.data$TIME, 0, 2)
+
+dc.roads <- roads("DC", "District of Columbia")
+dc.roads.major <- dc.roads %>%  filter(RTTYP %in% c("I","S","U"))
+dc.outline <- county_subdivisions("DC", "District of Columbia")
+```
+
+# Day Shift
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+dc1 <- subset(dc.data, dc.data$SHIFT == 'DAY' & 
+                dc.data$OFFENSE == 'BURGLARY')
+dc.november <- subset(dc1, dc1$MONTH == '11')
+crime <- dc1 %>%
+  group_by(DATE) %>%
+  summarise(COUNT = n())
+
+crime <- crime %>%
+  complete(DATE = seq.Date(min(DATE), max(DATE), by = "day")) %>%
+  mutate(WEEKDAY = lubridate::wday(DATE, label = T, week_start = 1), 
+         MONTH = lubridate::month(DATE, label = T, abbr = F),
+         WEEK = isoweek(DATE),
+         DAY = day(DATE),
+         YEAR = year(DATE))
+crime <- replace(crime, is.na(crime), 0)
+cleaned.data <- zoo(crime$COUNT, 
+                    seq(from = as.Date(min(crime$DATE)), 
+                        to = as.Date(max(crime$DATE)-1), by = 1))
+stationary.data <- diff(cleaned.data)
+arima.data <- auto.arima(stationary.data)
+
+month01 <- as.Date("2024-11-01")
+month30 <- as.Date("2024-11-30")
+start <- as.numeric(month01 - max(crime$DATE))
+end <- as.numeric(month30 - max(crime$DATE))
+days <- c(start:end)
+
+# forecasts per day
+forecast00 <- forecast(arima.data, h=(days[1]-1))
+forecast00 <- round(sum(forecast00$upper[,2]),0)
+forecast01 <- forecast(arima.data, h=days[1])
+forecast01 <- round(sum(forecast01$upper[,2]),0)
+forecast02 <- forecast(arima.data, h=days[2])
+forecast02 <- round(sum(forecast02$upper[,2]),0)
+forecast03 <- forecast(arima.data, h=days[3])
+forecast03 <- round(sum(forecast03$upper[,2]),0)
+forecast04 <- forecast(arima.data, h=days[4])
+forecast04 <- round(sum(forecast04$upper[,2]),0)
+forecast05 <- forecast(arima.data, h=days[5])
+forecast05 <- round(sum(forecast05$upper[,2]),0)
+forecast06 <- forecast(arima.data, h=days[6])
+forecast06 <- round(sum(forecast06$upper[,2]),0)
+forecast07 <- forecast(arima.data, h=days[7])
+forecast07 <- round(sum(forecast07$upper[,2]),0)
+forecast08 <- forecast(arima.data, h=days[8])
+forecast08 <- round(sum(forecast08$upper[,2]),0)
+forecast09 <- forecast(arima.data, h=days[9])
+forecast09 <- round(sum(forecast09$upper[,2]),0)
+forecast10 <- forecast(arima.data, h=days[10])
+forecast10 <- round(sum(forecast10$upper[,2]),0)
+forecast11 <- forecast(arima.data, h=days[11])
+forecast11 <- round(sum(forecast11$upper[,2]),0)
+forecast12 <- forecast(arima.data, h=days[12])
+forecast12 <- round(sum(forecast12$upper[,2]),0)
+forecast13 <- forecast(arima.data, h=days[13])
+forecast13 <- round(sum(forecast13$upper[,2]),0)
+forecast14 <- forecast(arima.data, h=days[14])
+forecast14 <- round(sum(forecast14$upper[,2]),0)
+forecast15 <- forecast(arima.data, h=days[15])
+forecast15 <- round(sum(forecast15$upper[,2]),0)
+forecast16 <- forecast(arima.data, h=days[16])
+forecast16 <- round(sum(forecast16$upper[,2]),0)
+forecast17 <- forecast(arima.data, h=days[17])
+forecast17 <- round(sum(forecast17$upper[,2]),0)
+forecast18 <- forecast(arima.data, h=days[18])
+forecast18 <- round(sum(forecast18$upper[,2]),0)
+forecast19 <- forecast(arima.data, h=days[19])
+forecast19 <- round(sum(forecast19$upper[,2]),0)
+forecast20 <- forecast(arima.data, h=days[20])
+forecast20 <- round(sum(forecast20$upper[,2]),0)
+forecast21 <- forecast(arima.data, h=days[21])
+forecast21 <- round(sum(forecast21$upper[,2]),0)
+forecast22 <- forecast(arima.data, h=days[22])
+forecast22 <- round(sum(forecast22$upper[,2]),0)
+forecast23 <- forecast(arima.data, h=days[23])
+forecast23 <- round(sum(forecast23$upper[,2]),0)
+forecast24 <- forecast(arima.data, h=days[24])
+forecast24 <- round(sum(forecast24$upper[,2]),0)
+forecast25 <- forecast(arima.data, h=days[25])
+forecast25 <- round(sum(forecast25$upper[,2]),0)
+forecast26 <- forecast(arima.data, h=days[26])
+forecast26 <- round(sum(forecast26$upper[,2]),0)
+forecast27 <- forecast(arima.data, h=days[27])
+forecast27 <- round(sum(forecast27$upper[,2]),0)
+forecast28 <- forecast(arima.data, h=days[28])
+forecast28 <- round(sum(forecast28$upper[,2]),0)
+forecast29 <- forecast(arima.data, h=days[29])
+forecast29 <- round(sum(forecast29$upper[,2]),0)
+forecast30 <- forecast(arima.data, h=days[30])
+forecast30 <- round(sum(forecast30$upper[,2]),0)
+
+forecast.list <- c(forecast00, forecast01, forecast02, forecast03, 
+                   forecast04, forecast05, forecast06, forecast07, 
+                   forecast08, forecast09, forecast10, forecast11, 
+                   forecast12, forecast13, forecast14, forecast15, 
+                   forecast16, forecast17, forecast18, forecast19, 
+                   forecast20, forecast21, forecast22, forecast23, 
+                   forecast24, forecast25, forecast26, forecast27, 
+                   forecast28, forecast29, forecast30)
+
+forecasts.tmp <- data.frame(c(start-1,days))
+colnames(forecasts.tmp) <- "DAYS"
+forecasts.tmp$ID <- seq.int(nrow(forecasts.tmp))
+forecasts.tmp$DATE <- forecasts.tmp$DAYS + max(crime$DATE)
+forecasts.tmp$TOTAL <- forecast.list
+forecasts <- subset(forecasts.tmp, forecasts.tmp$ID > 1)
+forecasts$ID <- seq.int(nrow(forecasts))
+forecasts.tmp <- forecasts.tmp[c(2,4)]
+names(forecasts.tmp) <- c("ID", "YESTERDAY")
+forecasts <- forecasts %>% left_join(forecasts.tmp, by = "ID")
+forecasts$TODAY <- forecasts$TOTAL - forecasts$YESTERDAY
+```
+
+### Daytime Burglary Forecasts: November 2024
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(forecasts, aes(DATE, TODAY)) +
+  geom_bar(stat = "identity") +
+  theme_classic() +
+  labs(
+    x = "Date",
+    y = "Expected Crime Count"
+  ) +
+  theme(axis.text.x= element_text(angle = 90)) +
+  scale_x_continuous("Date", labels = as.character(forecasts$DATE), 
+                     breaks = forecasts$DATE)
+```
+
+### Daytime Burglary Temporal Topology: Novembers, 2008-2023
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+crime.year.day.time <- dc.november %>%
+  group_by(YEAR, DOW, HOUR) %>%
+  summarise(COUNT = n())
+
+ggplot(crime.year.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile() + 
+  scale_fill_gradient(low = "white", high = "red") +
+  theme(legend.position = "none") +
+  coord_fixed() +
+  scale_y_discrete(limits = c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")) +
+  theme(axis.text.x = element_text(angle = 90, size = 5)) + 
+  theme(axis.text.y = element_text(size = 5)) + 
+  facet_wrap(~ YEAR, nrow = 3)
+```
+
+### Daytime Burglary Hotspots: Novembers, 2008-2023
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot() +
+  geom_sf(data = dc.outline) +
+  geom_hex(aes(x = LONGITUDE, y = LATITUDE), data = dc.november, 
+           bins = 15) +
+  geom_sf(data = dc.roads.major) +
+  scale_fill_continuous(type = "viridis") +
+  theme_classic() +
+  facet_wrap(~ YEAR, nrow = 3)
+```
+
+### 4. Analysis
+Sentences here.
+- Bullets if you want
+* Bullets if you want
+
+# Evening Shift
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+dc2 <- subset(dc.data, dc.data$SHIFT == 'EVENING' & 
+                dc.data$OFFENSE == 'BURGLARY')
+dc.november <- subset(dc2, dc2$MONTH == '11')
+crime <- dc2 %>%
+  group_by(DATE) %>%
+  summarise(COUNT = n())
+
+crime <- crime %>%
+  complete(DATE = seq.Date(min(DATE), max(DATE), by = "day")) %>%
+  mutate(WEEKDAY = lubridate::wday(DATE, label = T, week_start = 1), 
+         MONTH = lubridate::month(DATE, label = T, abbr = F),
+         WEEK = isoweek(DATE),
+         DAY = day(DATE),
+         YEAR = year(DATE))
+crime <- replace(crime, is.na(crime), 0)
+cleaned.data <- zoo(crime$COUNT, 
+                    seq(from = as.Date(min(crime$DATE)), 
+                        to = as.Date(max(crime$DATE)-1), by = 1))
+stationary.data <- diff(cleaned.data)
+arima.data <- auto.arima(stationary.data)
+
+month01 <- as.Date("2024-11-01")
+month30 <- as.Date("2024-11-30")
+start <- as.numeric(month01 - max(crime$DATE))
+end <- as.numeric(month30 - max(crime$DATE))
+days <- c(start:end)
+
+# forecasts per day
+forecast00 <- forecast(arima.data, h=(days[1]-1))
+forecast00 <- round(sum(forecast00$upper[,2]),0)
+forecast01 <- forecast(arima.data, h=days[1])
+forecast01 <- round(sum(forecast01$upper[,2]),0)
+forecast02 <- forecast(arima.data, h=days[2])
+forecast02 <- round(sum(forecast02$upper[,2]),0)
+forecast03 <- forecast(arima.data, h=days[3])
+forecast03 <- round(sum(forecast03$upper[,2]),0)
+forecast04 <- forecast(arima.data, h=days[4])
+forecast04 <- round(sum(forecast04$upper[,2]),0)
+forecast05 <- forecast(arima.data, h=days[5])
+forecast05 <- round(sum(forecast05$upper[,2]),0)
+forecast06 <- forecast(arima.data, h=days[6])
+forecast06 <- round(sum(forecast06$upper[,2]),0)
+forecast07 <- forecast(arima.data, h=days[7])
+forecast07 <- round(sum(forecast07$upper[,2]),0)
+forecast08 <- forecast(arima.data, h=days[8])
+forecast08 <- round(sum(forecast08$upper[,2]),0)
+forecast09 <- forecast(arima.data, h=days[9])
+forecast09 <- round(sum(forecast09$upper[,2]),0)
+forecast10 <- forecast(arima.data, h=days[10])
+forecast10 <- round(sum(forecast10$upper[,2]),0)
+forecast11 <- forecast(arima.data, h=days[11])
+forecast11 <- round(sum(forecast11$upper[,2]),0)
+forecast12 <- forecast(arima.data, h=days[12])
+forecast12 <- round(sum(forecast12$upper[,2]),0)
+forecast13 <- forecast(arima.data, h=days[13])
+forecast13 <- round(sum(forecast13$upper[,2]),0)
+forecast14 <- forecast(arima.data, h=days[14])
+forecast14 <- round(sum(forecast14$upper[,2]),0)
+forecast15 <- forecast(arima.data, h=days[15])
+forecast15 <- round(sum(forecast15$upper[,2]),0)
+forecast16 <- forecast(arima.data, h=days[16])
+forecast16 <- round(sum(forecast16$upper[,2]),0)
+forecast17 <- forecast(arima.data, h=days[17])
+forecast17 <- round(sum(forecast17$upper[,2]),0)
+forecast18 <- forecast(arima.data, h=days[18])
+forecast18 <- round(sum(forecast18$upper[,2]),0)
+forecast19 <- forecast(arima.data, h=days[19])
+forecast19 <- round(sum(forecast19$upper[,2]),0)
+forecast20 <- forecast(arima.data, h=days[20])
+forecast20 <- round(sum(forecast20$upper[,2]),0)
+forecast21 <- forecast(arima.data, h=days[21])
+forecast21 <- round(sum(forecast21$upper[,2]),0)
+forecast22 <- forecast(arima.data, h=days[22])
+forecast22 <- round(sum(forecast22$upper[,2]),0)
+forecast23 <- forecast(arima.data, h=days[23])
+forecast23 <- round(sum(forecast23$upper[,2]),0)
+forecast24 <- forecast(arima.data, h=days[24])
+forecast24 <- round(sum(forecast24$upper[,2]),0)
+forecast25 <- forecast(arima.data, h=days[25])
+forecast25 <- round(sum(forecast25$upper[,2]),0)
+forecast26 <- forecast(arima.data, h=days[26])
+forecast26 <- round(sum(forecast26$upper[,2]),0)
+forecast27 <- forecast(arima.data, h=days[27])
+forecast27 <- round(sum(forecast27$upper[,2]),0)
+forecast28 <- forecast(arima.data, h=days[28])
+forecast28 <- round(sum(forecast28$upper[,2]),0)
+forecast29 <- forecast(arima.data, h=days[29])
+forecast29 <- round(sum(forecast29$upper[,2]),0)
+forecast30 <- forecast(arima.data, h=days[30])
+forecast30 <- round(sum(forecast30$upper[,2]),0)
+
+forecast.list <- c(forecast00, forecast01, forecast02, forecast03, 
+                   forecast04, forecast05, forecast06, forecast07, 
+                   forecast08, forecast09, forecast10, forecast11, 
+                   forecast12, forecast13, forecast14, forecast15, 
+                   forecast16, forecast17, forecast18, forecast19, 
+                   forecast20, forecast21, forecast22, forecast23, 
+                   forecast24, forecast25, forecast26, forecast27, 
+                   forecast28, forecast29, forecast30)
+
+forecasts.tmp <- data.frame(c(start-1,days))
+colnames(forecasts.tmp) <- "DAYS"
+forecasts.tmp$ID <- seq.int(nrow(forecasts.tmp))
+forecasts.tmp$DATE <- forecasts.tmp$DAYS + max(crime$DATE)
+forecasts.tmp$TOTAL <- forecast.list
+forecasts <- subset(forecasts.tmp, forecasts.tmp$ID > 1)
+forecasts$ID <- seq.int(nrow(forecasts))
+forecasts.tmp <- forecasts.tmp[c(2,4)]
+names(forecasts.tmp) <- c("ID", "YESTERDAY")
+forecasts <- forecasts %>% left_join(forecasts.tmp, by = "ID")
+forecasts$TODAY <- forecasts$TOTAL - forecasts$YESTERDAY
+```
+
+### Evening Burglary Forecasts: November 2024
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(forecasts, aes(DATE, TODAY)) +
+  geom_bar(stat = "identity") +
+  theme_classic() +
+  labs(
+    x = "Date",
+    y = "Expected Crime Count"
+  ) +
+  theme(axis.text.x= element_text(angle = 90)) +
+  scale_x_continuous("Date", labels = as.character(forecasts$DATE), 
+                     breaks = forecasts$DATE)
+```
+
+### Evening Burglary Temporal Topology: Novembers, 2008-2023
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+crime.year.day.time <- dc.november %>%
+  group_by(YEAR, DOW, HOUR) %>%
+  summarise(COUNT = n())
+
+ggplot(crime.year.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile() + 
+  scale_fill_gradient(low = "white", high = "red") +
+  theme(legend.position = "none") +
+  coord_fixed() +
+  scale_y_discrete(limits = c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")) +
+  theme(axis.text.x = element_text(angle = 90, size = 5)) + 
+  theme(axis.text.y = element_text(size = 5)) + 
+  facet_wrap(~ YEAR, nrow = 3)
+```
+
+### Evening Burglary Hotspots: Novembers, 2008-2023
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot() +
+  geom_sf(data = dc.outline) +
+  geom_hex(aes(x = LONGITUDE, y = LATITUDE), data = dc.november, 
+           bins = 15) +
+  geom_sf(data = dc.roads.major) +
+  scale_fill_continuous(type = "viridis") +
+  theme_classic() +
+  facet_wrap(~ YEAR, nrow = 3)
+```
+
+### 4. Analysis
+Sentences here.
+- Bullets if you want
+* Bullets if you want
+
+# INSERT MIDNIGHT SHIFT STUFF HERE...
