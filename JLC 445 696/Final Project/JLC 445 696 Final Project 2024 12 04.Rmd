@@ -1,0 +1,260 @@
+---
+title: "JLC 445/696 Final Project Template"
+author: "Your Name"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: 
+  cleanrmd::html_document_clean:
+    theme: markdown-modest
+    toc: yes
+    toc_float: 
+      collapsed: true
+---
+
+Libraries needed for this project (showing this code is optional):
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(leaflet)
+library(sf)
+library(tigris)
+library(zoo)
+library(aTSA)
+library(tseries)
+library(forecast)
+```
+
+# 1. Research Question
+
+For example, ***using 2008-2024 data, forecast motor vehicle theft counts and locations in Washington, D.C. for each month in 2025.***
+
+# 2. Data
+
+INSERT ONE PARAGRAPH HERE: getting, cleaning, and filtering the data.
+
+(Showing the code here is optional)
+
+Getting the data:
+```{r}
+url <- "https://opendata.dc.gov/datasets/DCGIS::crime-incidents-in-"
+years <- c(2008:2024)
+full.urls <- paste0(url, years, ".csv")
+dc.data <- data.frame()
+
+for(file in full.urls) {
+  tmp.data <- read.csv(file, stringsAsFactors = FALSE)
+  dc.data <- rbind(tmp.data, dc.data)
+}
+```
+
+Cleaning the data:
+```{r}
+dc.data <- separate(dc.data, REPORT_DAT, into = c("DATE", "TIME"), sep = " ")
+dc.data$DATE <- as.Date(dc.data$DATE, format = "%Y/%m/%d")
+dc.data$YEAR <- substr(dc.data$DATE, 0, 4)
+dc.data$MONTH <- month(dc.data$DATE)
+dc.data$MONTHS <- months(dc.data$DATE)
+dc.data$DAY <- day(dc.data$DATE)
+dc.data$DOW <- weekdays(dc.data$DATE)
+dc.data$HOUR <- substr(dc.data$TIME, 0, 2)
+```
+
+Filtering the data:
+```{r}
+group <- c("MOTOR VEHICLE THEFT")
+dc.subset <- dc.data %>% filter(dc.data$OFFENSE %in% group)
+```
+
+# 3. Methods
+
+INSERT ONE PARAGRAPH DISCUSSING YOUR ARIMA MODEL AND PARAMETERS (**p**, **d**, and **q**), including: creating crimes per day, making the data stationary, running the ADF test, and running lagged correlations to create your ARIMA model.
+
+(Pick and choose what code you show here; recommend cleaning to only have code for the data you use; meaning don't include 'stationary2' and 'stationary3' if you use 'stationary1')
+
+Create a time series dataset for count of crimes per day:
+```{r}
+crime <- dc.subset %>%
+  group_by(DATE) %>%
+  summarise(CRIME.COUNT = n())
+
+crime <- crime %>%
+  complete(DATE = seq.Date(min(DATE), max(DATE), by = "day")) %>%
+  mutate(WEEKDAY = lubridate::wday(DATE, label = T, week_start = 1), 
+         MONTH = lubridate::month(DATE, label = T, abbr = F),
+         WEEK = isoweek(DATE),
+         DAY = day(DATE),
+         YEAR = year(DATE))
+crime <- replace(crime, is.na(crime), 0)
+
+cleaned.crime <- zoo(crime$CRIME.COUNT, 
+                       seq(from = as.Date(min(crime$DATE)), 
+                           to = as.Date(max(crime$DATE)-1), by = 1))
+```
+
+Create stationary, differenced datasets:
+```{r}
+stationary1 <- diff(cleaned.crime, differences = 1)
+stationary2 <- diff(cleaned.crime, differences = 2)
+stationary3 <- diff(cleaned.crime, differences = 3)
+```
+
+Visualize their plots:
+```{r}
+plot(stationary1)
+plot(stationary2)
+plot(stationary3)
+```
+
+Run ADF tests for the original data, and the differenced data:
+```{r}
+adf.test(as.matrix(cleaned.crime))
+adf.test(as.matrix(stationary1))
+adf.test(as.matrix(stationary2))
+adf.test(as.matrix(stationary3))
+```
+
+Choose the best fitting dataset.
+
+Determine **p** value:
+```{r}
+pacf(stationary1)
+pacf(stationary1, pl=FALSE)
+```
+
+Determine the **q** value:
+```{r}
+acf(stationary1)
+acf(stationary1, pl=FALSE)
+```
+
+Build an ARIMA model using the parameters identified from above:
+```{r}
+arima.crime <- auto.arima(cleaned.crime, d = 1, max.p = 10, max.q = 1, seasonal = T)
+```
+
+Run the summary stats on your model to identity which parameters were determined to be the best fitting:
+```{r}
+summary(arima.crime)
+```
+
+Check the model residuals:
+```{r}
+checkresiduals(arima.crime)
+```
+
+Forecast every day between now and the end of 2025:
+```{r}
+forecast.window <- as.numeric(as.Date("2025-12-31")-max(crime$DATE))
+
+forecast.2025 <- forecast(arima.crime, h=forecast.window)
+autoplot(forecast.2025)
+```
+
+Extract the forecasted values as a table, clean up the column names, add the forecast date and month, filter to just 2025 forecasts, and summarize by month:
+```{r}
+forecast.values <- as.data.frame(forecast.2025$mean)
+forecast.values$ID <- seq.int(nrow(forecast.values))
+forecast.upper <- as.data.frame(forecast.2025$upper)
+forecast.upper$ID <- seq.int(nrow(forecast.upper))
+forecast.values <- forecast.values %>%
+  left_join(forecast.upper, by = 'ID')
+colnames(forecast.values) <- c("MEAN", "ID", "CI80", "CI90")
+forecast.values$DATE <- as.Date(max(crime$DATE) + forecast.values$ID)
+forecast.values$MONTH <- months(forecast.values$DATE)
+
+forecast.values.2025 <- subset(forecast.values, forecast.values$DATE > '2024-12-31')
+forecast.months <- forecast.values.2025 %>%
+  group_by(MONTH) %>%
+  summarise(MEAN = round(sum(MEAN),0), FORECAST.90 = round(sum(CI90),0), FORECAST.80 = round(sum(CI80),0))
+forecast.months$DIFF <- forecast.months$FORECAST.90 - forecast.months$FORECAST.80
+```
+
+# 4. Findings
+
+FIRST PARAGRAPH: describe the model. What do you expect to occur during 2025 - the highs, the lows, the norms, etc. Describe the count of events and likely locations (specific areas of the city). 
+
+SECOND PARAGRAPH: integrate the model. Provide some context to the numbers and locations. Provide at least one reference/citation to a peer-reviewed/academic research study that supports your response.
+
+# 5. Visuals
+
+### 1-2 Graphs
+
+Option 1: Graph actual crime with predicted crime:
+```{r}
+crime2024 <- crime[c(1,2)]
+crime2025 <- forecast.values[c(5,1)]
+names(crime2025) <- c("DATE", "CRIME.COUNT")
+
+new.crime <- rbind(crime2024, crime2025)
+
+graph.new.crime <- ggplot(new.crime, aes(x=DATE, y=CRIME.COUNT)) + 
+  geom_line() + 
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y") + 
+  xlab("Years") + 
+  ylab("Crime Count") + 
+  ggtitle("TITLE HERE") + 
+  geom_area(fill="lightblue", color="black")
+
+graph.new.crime + 
+  geom_smooth(method = lm, col = "red", se = FALSE) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Option 2: Graph upper bounds (80% and 90% confidence intervals) by month
+```{r}
+forecast.months$MONTH <- factor(forecast.months$MONTH, levels = forecast.months$MONTH)
+forecast.long <- pivot_longer(forecast.months, cols = c(FORECAST.80, DIFF), 
+                          names_to = "Category", values_to = "Value")
+forecast.long$Category <- gsub("DIFF", "90% Confidence Interval", forecast.long$Category)
+forecast.long$Category <- gsub("FORECAST.80", "80% Confidence Interval", forecast.long$Category)
+
+ggplot(forecast.long, aes(x = MONTH, y = Value, fill = fct_rev(Category))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Value), size = 3, colour = 'white', position = position_stack(vjust = 0.5)) + 
+  labs(title = "Washington D.C. 2025 Monthly Forecast Upper Bounds", 
+       x = "Month", 
+       y = "Crime Count") +
+  scale_fill_manual(values = c("90% Confidence Interval" = "blue",
+                               "80% Confidence Interval" = "grey"),
+                    name = "Forecasts") +
+  scale_x_discrete(limits = c("January", "February", "March", "April", "May", "June", "July", "August",
+                              "September", "October", "November", "December")) + 
+  coord_cartesian(ylim = c(0, 900)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Option 3: Graph mean forecast by month
+```{r}
+ggplot(forecast.months, aes(x = MONTH, y = MEAN)) +
+  geom_bar(stat = "identity") +
+  scale_x_discrete(limits = c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December")) +
+  coord_cartesian(ylim = c(450, 550)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(title = "Washington D.C. 2025 Mean Monthly Forecast", 
+       x = "Month", 
+       y = "Crime Count")
+```
+
+### 1-2 Maps
+
+  - Get the city outline and roads
+```{r, warning=FALSE, message=FALSE, results='hide'}
+dc.roads <- roads("DC", "District of Columbia")
+dc.roads.major <- dc.roads %>%  filter(RTTYP %in% c("I","S","U"))
+dc.outline <- county_subdivisions("DC", "District of Columbia")
+```
+
+  - Choose a hotspot method
+  - Facet by month
+  
+```{r, warning=FALSE}
+ggplot() +
+  geom_sf(data = dc.outline, color = "grey") +
+  geom_hex(aes(x = LONGITUDE, y = LATITUDE), data = dc.subset, bins = 16) +
+  scale_fill_continuous(type = "viridis") +
+  geom_sf(data = dc.roads.major, color = "black", alpha = 0.4) +
+  theme_classic() +
+  facet_wrap(~ MONTH)
+```
+
+[THE SOURCE CODE FOR THIS FILE WE CREATED IN CLASS ON 12/4/2024 CAN BE FOUND HERE]()
