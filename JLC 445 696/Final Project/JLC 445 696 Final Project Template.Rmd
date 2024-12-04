@@ -1,6 +1,6 @@
 ---
-title: "CRIM 515 Final Project Template"
-author: "My Name"
+title: "JLC 445/696 Final Project Template"
+author: "Your Name"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output: 
   cleanrmd::html_document_clean:
@@ -10,11 +10,13 @@ output:
       collapsed: true
 ---
 
-The Final Project follows the same general flow as the Research Projects, as outlined below. Use this format as much or as little as you'd like, as long as the required components are covered.
+The Final Project is an extension of [Project 3](https://docs.google.com/document/d/1YieHxCkKotVrPLA5_2ngvtTa10tPLpukANshYsnXurA/edit?usp=sharing), that also involves the integration of work you've done throughout this semester and beyond. Use the format provided in this document as much or as little as you'd like, as long as the required components are covered. 
+
+If you want to get crazy with Markdown themes, [here's a great link](https://rpubs.com/ranydc/rmarkdown_themes).
 
 # 1. Research Question
 
-The goal of this project is to **forecast** future **calls for service** activity in the **City of Fairfax, Virginia** for calendar year 2025. 
+The goal of this project is to **forecast** future **crime** activity in  **Washington, D.C.** for **calendar year 2025**. 
 
 These instructions will demonstrate how to forecast using an ***ARIMA model***. An ARIMA model is an Autoregressive Integrated Moving Average, which is a univariate model predicting future values of a single variable over time. Let's breakdown these terms:
 
@@ -24,11 +26,11 @@ These instructions will demonstrate how to forecast using an ***ARIMA model***. 
 
 Your research question should consider **behavior**, **space**, and **time**. You'll either *measure* or *control* for each of these. 
 
-- Behavior: what call type(s)
+- Behavior: what crime type(s)
 - Space: where
 - Time: when is the data from, when are you forecasting
 
-For example, ***using 2008-2024 data, forecast trespass calls for service counts and locations in the City of Fairfax, VA for each month in 2025.***
+For example, ***using 2008-2024 data, forecast robberies counts and locations in Washington, D.C. for each month in 2025.***
 
 # 2. Data
 
@@ -46,52 +48,50 @@ library(tseries)
 library(forecast)
 ```
 
-2. Get the latest and greatest Fairfax calls for service data:
+2. Get the latest and greatest D.C. crime data, like we did in Projects 2 and 3:
 ```{r}
-calls.full <- read.csv(sprintf("https://docs.google.com/uc?id=%s&export=download",
-                               "1ti7BCMe1vvDVVr75p6lqvgouCy_ae7rn"))
+url <- "https://opendata.dc.gov/datasets/DCGIS::crime-incidents-in-"
+years <- c(2008:2024)
+full.urls <- paste0(url, years, ".csv")
+dc.data <- data.frame()
+
+for(file in full.urls) {
+  tmp.data <- read.csv(file, stringsAsFactors = FALSE)
+  dc.data <- rbind(tmp.data, dc.data)
+}
 ```
 
 ### Wrangle
 
-3. Format the date, as a date, and add month columns (different styles) for later:
+3. Separate the date, format it, and enrich the dataset with more temporal measures:
 ```{r}
-calls.full$DATE <- as.Date(calls.full$date, format = "%Y-%m-%d")
-calls.full$MONTHS <- months(calls.full$DATE)
-calls.full$MONTH <- month(calls.full$DATE)
+dc.data <- separate(dc.data, REPORT_DAT, into = c("DATE", "TIME"), sep = " ")
+dc.data$DATE <- as.Date(dc.data$DATE, format = "%Y/%m/%d")
+dc.data$YEAR <- substr(dc.data$DATE, 0, 4)
+dc.data$MONTH <- month(dc.data$DATE)
+dc.data$MONTHS <- months(dc.data$DATE)
+dc.data$DAY <- day(dc.data$DATE)
+dc.data$DOW <- weekdays(dc.data$DATE)
+dc.data$HOUR <- substr(dc.data$TIME, 0, 2)
 ```
 
-4. Determine the total count and percentage of each call type:
+4. Determine the total count and percentage of each crime type:
 ```{r}
-sum.calls <- calls.full %>%
-  group_by(type) %>%
-  summarise(call.count = n()) %>%
-  mutate(pct = round(call.count/sum(call.count)*100,2))
+dc.sum <- dc.data %>%
+  group_by(OFFENSE) %>%
+  summarise(CRIME.COUNT = n()) %>%
+  mutate(PCT = round(CRIME.COUNT/sum(CRIME.COUNT)*100,2))
 ```
 
-5. Use the table from #4 to find and filter the call types to forecast (choose your own!):
+5. Use the table from #4 to find and filter the crime type(s) to forecast (choose your own!):
 ```{r}
-group <- c("SUSPICIOUS", "MISC")
-calls.subset <- calls.full %>% filter(calls.full$type %in% group)
+group <- c("ROBBERY")
+dc.subset <- dc.data %>% filter(dc.data$OFFENSE %in% group)
 ```
 
 # 3. Methods
 
 Building a relevant methodology is largely dependent on your research question and data. Any good methodology involves multiple steps for **acquiring** (done above), **wrangling** (done above), **calculating**, **visualizing**, and **analyzing** data. There is no single right answer here; rather, its the ability to craft a unique, distinct workflow that results in innovative work. 
-
-Some important considerations for ***how*** you use your data include:
-
-  - **SPACE**:
-      - Overall: ***Fairfax, VA***
-      - Unit of Measurement: ***Neighborhoods? Streets?***
-  
-  - **TIME**: 
-      - Overall: time range for your datas
-      - Unit of Measurement: ***Days, Months, Years***
-  
-  - **BEHAVIOR**:
-      - Overall: Types, categories
-      - Unit of Measurement: ***Call type(s)***
 
 To use an ARIMA model, we will identify values for **p**, **d**, and **q**:
 
@@ -101,16 +101,16 @@ To use an ARIMA model, we will identify values for **p**, **d**, and **q**:
 
 ### Calculate
 
-1. Calculate calls per day:
+1. Calculate crimes per day:
 ```{r}
-calls <- calls.subset %>%
+crime <- dc.subset %>%
   group_by(DATE) %>%
-  summarise(CALL.COUNT = n())
+  summarise(CRIME.COUNT = n())
 ```
 
 2. Fill in blank days:
 ```{r}
-calls <- calls %>%
+crime <- crime %>%
   complete(DATE = seq.Date(min(DATE), max(DATE), by = "day")) %>%
   mutate(WEEKDAY = lubridate::wday(DATE, label = T, week_start = 1), 
          MONTH = lubridate::month(DATE, label = T, abbr = F),
@@ -118,30 +118,30 @@ calls <- calls %>%
          DAY = day(DATE),
          YEAR = year(DATE))
 # replace the NAs with 0s
-calls <- replace(calls, is.na(calls), 0)
+crime <- replace(crime, is.na(crime), 0)
 ```
 
 3. Change the data type to a proper time series, update the sequencing:
 ```{r}
-cleaned.calls <- zoo(calls$CALL.COUNT, 
-                       seq(from = as.Date(min(calls$DATE)), 
-                           to = as.Date(max(calls$DATE)), by = 1))
+cleaned.crime <- zoo(crime$CRIME.COUNT, 
+                       seq(from = as.Date(min(crime$DATE)), 
+                           to = as.Date(max(crime$DATE)-1), by = 1))
 ```
 
 4. Generate basic summary stats and a basic graph:
 ```{r}
-summary(cleaned.calls)
-plot(cleaned.calls)
-title("My Calls Per Day") # this adds a title to your graph
+summary(cleaned.crime)
+plot(cleaned.crime)
+title("My Crime Per Day") # this adds a title to your graph
 ```
 
 5. Make the data stationary (normalized, as a deviation from previous values), and a new basic graph. You can do more/higher differences as necessary (but probably don't need to). Examine the graphs and compare the spikes. These are just examples:
 ```{r}
-stationary1 <- diff(cleaned.calls, differences = 1)
+stationary1 <- diff(cleaned.crime, differences = 1)
 plot(stationary1)
-stationary2 <- diff(cleaned.calls, differences = 2)
+stationary2 <- diff(cleaned.crime, differences = 2)
 plot(stationary2)
-stationary3 <- diff(cleaned.calls, differences = 3)
+stationary3 <- diff(cleaned.crime, differences = 3)
 plot(stationary3)
 ```
 
@@ -149,7 +149,7 @@ Look for the data with the narrowest y axis range, as consistently as close to 0
 
 6. Conduct an [Augmented Dickey-Fuller test](https://en.wikipedia.org/wiki/Augmented_Dickey%E2%80%93Fuller_test) to determine if the data is stationary. The resultant score should be a negative number, and the lower the number the stronger the data is stationary. In this example, 'cleaned.calls' is run as a comparison to data that is not differenced.
 ```{r}
-adf.test(as.matrix(cleaned.calls))
+adf.test(as.matrix(cleaned.crime))
 adf.test(as.matrix(stationary1))
 adf.test(as.matrix(stationary2))
 adf.test(as.matrix(stationary3))
@@ -171,19 +171,19 @@ acf(stationary1)
 acf(stationary1, pl=FALSE)
 ```
 
-In this example, the **p** should be **8**, and the **q** should be **1**.
+In this example, the **p** should be **6**, and the **q** should be **1**.
 
 8. Build an ARIMA function using the inputs derived from previous steps (based on analysis from the graph in Step 4, it's reasonable to assume our data has season trends - so we'll set it to TRUE):
 ```{r}
-arima.calls <- auto.arima(cleaned.calls, d = 1, max.p = 8, max.q = 1, seasonal = T)
-summary(arima.calls)
+arima.crime <- auto.arima(cleaned.crime, d = 1, max.p = 6, max.q = 1, seasonal = T)
+summary(arima.crime)
 ```
 
 Note that the 'auto.arima' function runs a series of ARIMA models and choose the best fit for the data. The best fitting model can be interpreted as ARIMA(d, p, q).
 
 9. Do a quick residuals checks on the model to see how it performed:
 ```{r}
-checkresiduals(arima.calls)
+checkresiduals(arima.crime)
 ```
 Proper residuals derived from your model include:
 
@@ -193,19 +193,19 @@ Proper residuals derived from your model include:
 8. Use the ARIMA function to do a sample forecast for the next week of data:
 ```{r}
 # h = the number of units of time to measure
-forecast.7days <- forecast(arima.calls, h=7)
+forecast.7days <- forecast(arima.crime, h=7)
 round(sum(forecast.7days$upper[,2]),0)
 forecast.7days$mean
 ```
 
 9. Identify the number of days between the last date in your dataset and the end of 2025:
 ```{r}
-forecast.window <- as.numeric(as.Date("2025-12-31")-max(calls$DATE))
+forecast.window <- as.numeric(as.Date("2025-12-31")-max(crime$DATE))
 ```
 
 10. Forecast the number of calls per day for everyday in that window, and plot it:
 ```{r}
-forecast.2025 <- forecast(arima.calls, h=forecast.window)
+forecast.2025 <- forecast(arima.crime, h=forecast.window)
 autoplot(forecast.2025)
 ```
 
@@ -218,7 +218,7 @@ forecast.upper$ID <- seq.int(nrow(forecast.upper))
 forecast.values <- forecast.values %>%
   left_join(forecast.upper, by = 'ID')
 colnames(forecast.values) <- c("MEAN", "ID", "CI80", "CI90")
-forecast.values$DATE <- as.Date(max(calls$DATE) + forecast.values$ID)
+forecast.values$DATE <- as.Date(max(crime$DATE) + forecast.values$ID)
 forecast.values$MONTH <- months(forecast.values$DATE)
 ```
 
@@ -233,38 +233,38 @@ forecast.months$DIFF <- forecast.months$FORECAST.90 - forecast.months$FORECAST.8
 
 ### Visualize
 
-1. Graph of calls with a trend line:
+1. Graph of crime with a trend line:
 ```{r, message=FALSE}
-graph.calls <- ggplot(calls, aes(x=DATE, y=CALL.COUNT)) + 
+graph.crime <- ggplot(crime, aes(x=DATE, y=CRIME.COUNT)) + 
   geom_line() + 
   scale_x_date(date_breaks = "1 year", date_labels = "%Y") + 
   xlab("Years") + 
-  ylab("Call Count") + 
+  ylab("Crime Count") + 
   ggtitle("TITLE HERE") + 
   geom_area(fill="lightblue", color="black")
 
-graph.calls + 
+graph.crime + 
   geom_smooth(method = lm, col = "red", se = FALSE) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
-2. Graph actual calls with predicted calls:
+2. Graph actual crime with predicted crime:
 ```{r}
-calls2024 <- calls[c(1,2)]
-calls2025 <- forecast.values[c(5,1)]
-names(calls2025) <- c("DATE", "CALL.COUNT")
+crime2024 <- crime[c(1,2)]
+crime2025 <- forecast.values[c(5,1)]
+names(crime2025) <- c("DATE", "CRIME.COUNT")
 
-new.calls <- rbind(calls2024, calls2025)
+new.crime <- rbind(crime2024, crime2025)
 
-graph.new.calls <- ggplot(new.calls, aes(x=DATE, y=CALL.COUNT)) + 
+graph.new.crime <- ggplot(new.crime, aes(x=DATE, y=CRIME.COUNT)) + 
   geom_line() + 
   scale_x_date(date_breaks = "1 year", date_labels = "%Y") + 
   xlab("Years") + 
-  ylab("Call Count") + 
+  ylab("Crime Count") + 
   ggtitle("TITLE HERE") + 
   geom_area(fill="lightblue", color="black")
 
-graph.new.calls + 
+graph.new.crime + 
   geom_smooth(method = lm, col = "red", se = FALSE) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
@@ -283,15 +283,15 @@ forecast.long$Category <- gsub("FORECAST.80", "80% Confidence Interval", forecas
 ggplot(forecast.long, aes(x = MONTH, y = Value, fill = fct_rev(Category))) +
   geom_bar(stat = "identity") +
   geom_text(aes(label = Value), size = 3, colour = 'white', position = position_stack(vjust = 0.5)) + 
-  labs(title = "City of Fairfax 2025 Monthly Forecast Upper Bounds", 
+  labs(title = "Washington D.C. 2025 Monthly Forecast Upper Bounds", 
        x = "Month", 
-       y = "Call Count") +
+       y = "Crime Count") +
   scale_fill_manual(values = c("90% Confidence Interval" = "blue",
                                "80% Confidence Interval" = "grey"),
                     name = "Forecasts") +
   scale_x_discrete(limits = c("January", "February", "March", "April", "May", "June", "July", "August",
                               "September", "October", "November", "December")) + 
-  coord_cartesian(ylim = c(0, 500)) +
+  coord_cartesian(ylim = c(0, 550)) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 
@@ -299,35 +299,34 @@ ggplot(forecast.months, aes(x = MONTH, y = MEAN)) +
   geom_bar(stat = "identity") +
   scale_x_discrete(limits = c("January", "February", "March", "April", "May", "June", "July", "August",
                               "September", "October", "November", "December")) +
-  coord_cartesian(ylim = c(100, 175)) +
+  coord_cartesian(ylim = c(150, 200)) +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-  labs(title = "City of Fairfax 2025 Mean Monthly Forecast", 
+  labs(title = "Washington D.C. 2025 Mean Monthly Forecast", 
        x = "Month", 
-       y = "Call Count")
+       y = "Crime Count")
 ```
 
 5. Map your monthly hotspots.
 
   - Get the city outline and roads
 ```{r, warning=FALSE, message=FALSE, results='hide'}
-fairfax.roads <- roads("VA", "Fairfax city")
-fairfax.outline <- county_subdivisions("VA", "Fairfax city")
+dc.roads <- roads("DC", "District of Columbia")
+dc.roads.major <- dc.roads %>%  filter(RTTYP %in% c("I","S","U"))
+dc.outline <- county_subdivisions("DC", "District of Columbia")
 ```
-  - Filter your data by month
+
   - Choose a hotspot method
-  - Facet by year
+  - Facet by year or month
 ```{r, warning=FALSE}
 ggplot() +
-  geom_sf(data = fairfax.outline, color = "grey") +
-  geom_hex(aes(x = lon, y = lat), data = calls.subset, bins = 8) +
+  geom_sf(data = dc.outline, color = "grey") +
+  geom_hex(aes(x = LONGITUDE, y = LATITUDE), data = dc.subset, bins = 8) +
   scale_fill_continuous(type = "viridis") +
-  geom_sf(data = fairfax.roads, color = "black", alpha = 0.4) +
+  geom_sf(data = dc.roads, color = "black", alpha = 0.4) +
   theme_classic() +
   facet_wrap(~ MONTH)
 ```
-
-  - Repeat for multiple years to confirm any monthly patterns.
 
 # 4. Findings
 
@@ -363,45 +362,40 @@ And finally, [this is just fun](https://www.thisworddoesnotexist.com/).
 2. When you are ready to see what the output looks like, **click the 'Knit' button.** The output file will be saved to the same folder this script is saved to.
 3. *Never ever ever include any install.packages functions.* Either comment them out with a #, or delete them.
 
-# Grading: 30pts
+# Grading: 10pts
 
 #### 1. Research Question
-***2pt***
+***1pt***
 
 Provide a brief paragraph (1-2 sentences) on the research question. State the question, in terms of behavior, space, and time. Define key terms and concepts, to include how variables will be measured.
 
-#### 2. Literature Review
-***2pts***
-
-Provide a brief paragraph describing a prior study related to your current project. This study should be from a peer-academic academic journal. Include details about the *research question*, *data*, *methods*, and *findings*. Cite the article in *APA format*. 
-
-#### 3. Data 
+#### 2. Data 
 ***1pt***
 
 Provide a brief paragraph on the data used in this study. This includes the specific source(s), and the specific temporal and spatial constraints. Address any major advantages and disadvantages with using these data compared to other sources. Be specific enough that a reader could replicate this work.
 
-#### 4. Methods
-***2pts***
+#### 3. Methods
+***1pt***
 
 Provide a brief paragraph on the research methods leveraged to answer this question. This includes the software, calculations, skills, techniques, and unique workflows used to analyze your data and develop an answer. You do NOT need to describe click-by-click instructions or lines of code describing how you did things; you DO need to describe a logical process that is specific enough that a reader could replicate. 
 
-#### 5. Findings
-***12pts***
+#### 4. Findings
+***3pts***
 
-Provide one brief paragraph (4-5 sentences) per month forecasted (*2pts each*). Each paragraph should include forecasted counts, and specific areas of the city to focus on. Your findings should be descriptive, clear, and comprehensively answer the original question. 
+Provide two paragraphs, 4-5 sentences each (*1.5pts each*). Paragraph 1 should describe your forecast: what do you expect to occur during 2025 - the highs, the lows, the norms, etc. Describe the count of events and likely locations (specific areas of the city). 
 
-#### 7. Visuals
-***10pts***
+Paragraph 2 should be an integration. Using your understanding of criminology, make sense of this forecast. Provide some context to the numbers and locations. Not necessarily *why* these crimes will occur, but what are the factors influencing your model. Provide at least one reference/citation to a peer-reviewed/academic research study that supports your response.
 
-  - Provide a graph that highlights your model (*2pts*).
+#### 5. Visuals
+***3pts***
 
-  - Provide a graph showing the forecasted counts for each month in 2025. This graph should have a title and correct axis labels (*2pts*).
+  - Provide 1-2 graphs that highlight your model (*1.5pts*). These graphs can show your historical crime combined with your forecast, or just your forecast.
 
-  - Provide hotspot maps (*6pts*). 
+  - Provide 1-2 hotspot maps (*1.5pts*). These maps should be faceted by month or year. 
 
   - All visuals should be thoughtful and logical (make sense to someone that has never seen them before); somehow, someway referenced in the text; and analytically meaningful (provide useful, relevant, and actionable insights) 
 
-#### 8. Formatting
+#### 6. Formatting
 ***1pt***
 
 - Error-free writing. No typos, run-on sentences, or sentence fragments. Proper punctuation. Real words. Need help paraphrasing dense content? [Try this](https://quillbot.com/). And [here’s a great reference](https://cognella-titles-sneakpreviews.s3-us-west-2.amazonaws.com/83869-1A-URT/83869-1A_SP.pdf), too.
@@ -409,4 +403,4 @@ Provide one brief paragraph (4-5 sentences) per month forecasted (*2pts each*). 
 
 ONE LAST THING... the source code for creating this file can be [found here](https://github.com/matthew-danna/criminal-justice-research-methods-data-analysis/blob/main/scripts/2024%20fall/CRIM%20515%20Final%20Project%20Template.Rmd).
 
-Please [email me](mailto:mdanna2@gmu.edu) with any questions.
+Please [email me](mailto:danna@american.edu) with any questions.
