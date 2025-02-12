@@ -1,0 +1,105 @@
+---
+title: "JLC 445 Project 2"
+author: "Your Name"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document
+---
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, results='hide'}
+# STEP 0
+library(tidyverse)
+library(leaflet)
+library(sf)
+library(tigris)
+library(data.table)
+
+# STEP 1
+url <- "https://opendata.dc.gov/datasets/DCGIS::crime-incidents-in-"
+years <- c(2008:2025)
+full.urls <- paste0(url, years, ".csv")
+
+dc.data <- data.frame()
+
+for(file in full.urls) {
+  tmp.data <- read.csv(file, stringsAsFactors = FALSE)
+  dc.data <- rbind(tmp.data, dc.data)
+}
+
+# STEP 2
+dc.data <- separate(dc.data, REPORT_DAT, into = c("DATE", "TIME"), sep = " ")
+dc.data$DATE <- as.Date(dc.data$DATE, format = "%Y/%m/%d")
+
+# STEP 3
+dc.data$YEAR <- substr(dc.data$DATE, 0, 4)
+dc.data$MONTH <- month(dc.data$DATE)
+dc.data$MONTHS <- months(dc.data$DATE)
+dc.data$DAY <- day(dc.data$DATE)
+dc.data$DOW <- weekdays(dc.data$DATE)
+dc.data$HOUR <- substr(dc.data$TIME, 0, 2)
+
+### geographic data
+dc.roads <- roads("DC", "District of Columbia")
+dc.roads.major <- dc.roads %>% filter(RTTYP %in% c("I", "S", "U"))
+dc.outline <- county_subdivisions("DC", "District of Columbia")
+dc.placenames <- landmarks("DC")
+dc.au <- subset(dc.placenames, dc.placenames$POINTID == '1102652897573')
+dc.water <- area_water("DC", "District of Columbia")
+dc.water <- filter(dc.water, AWATER >= 1000)
+```
+
+# Map 1: D.C. Homicides, 2008-2025 YTD
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot() +
+  geom_sf(data = dc.outline$geometry, fill = "transparent", linewidth = 1, 
+          color = "black") +
+  geom_sf(data = dc.roads$geometry, alpha = 0.1) +
+  geom_sf(data = dc.water$geometry, fill = "lightblue") +
+  geom_point(data = filter(dc.data, OFFENSE == "HOMICIDE"), 
+             aes(x = LONGITUDE, y = LATITUDE), size = 1.0, alpha = 0.15, color = "red") +
+  geom_sf_text(data = dc.placenames$geometry, label = dc.placenames$FULLNAME, 
+               check_overlap = TRUE, size = 1.5) +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        plot.subtitle = element_text(size = 8, hjust=.5, margin=margin(2, 0, 5, 0)),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.background = element_blank())
+```
+
+# Map 2: New Crime Type Here
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+ggplot() +
+  geom_sf(data = dc.outline$geometry, fill = "transparent", linewidth = 1, 
+          color = "black") +
+  geom_sf(data = dc.roads$geometry, alpha = 0.1) +
+  geom_sf(data = dc.water$geometry, fill = "lightblue") +
+  stat_density2d(data = filter(dc.data, OFFENSE == "BURGLARY"), 
+                 aes(x = LONGITUDE, y = LATITUDE, fill = ..level..), 
+                 bins = 10, h = 0.01, geom = "polygon", alpha = 0.75) +
+  geom_sf_text(data = dc.placenames$geometry, label = dc.placenames$FULLNAME, 
+               check_overlap = TRUE, size = 1.5) +
+  scale_fill_viridis_c(option = "plasma") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.background = element_blank())
+```
+
+# Map 3: What crime type is this?
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+dc3 <- subset(dc.data, dc.data$OFFENSE == 'ROBBERY')
+
+leaflet(dc3) %>%
+  addTiles() %>%
+  addMarkers(lng = ~LONGITUDE, lat = ~LATITUDE, 
+             popup = paste(
+               "Crime Type: ", dc3$OFFENSE, "<br>",
+               "Date:", dc3$DATE, "<br>",
+               "Shift: ", dc3$SHIFT), 
+             clusterOptions = markerClusterOptions()) %>%
+  addPolygons(data = dc.outline)
+```
+
