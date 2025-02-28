@@ -1,0 +1,66 @@
+---
+title: "Course Name Course Number Project Template"
+author: "Your Name"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document
+---
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE,results='hide'}
+library(tidyverse)
+library(leaflet)
+library(sf)
+library(tigris)
+library(zoo)
+library(aTSA)
+library(tseries)
+library(forecast)
+library(data.table)
+
+url <- "https://opendata.dc.gov/datasets/DCGIS::crime-incidents-in-"
+years <- c(2008:2025)
+full.urls <- paste0(url, years, ".csv")
+dc.data <- data.frame()
+
+for(file in full.urls) {
+  tmp.data <- read.csv(file, stringsAsFactors = FALSE)
+  dc.data <- rbind(tmp.data, dc.data)
+}
+
+dc.data <- separate(dc.data, REPORT_DAT, into = c("DATE", "TIME"), sep = " ")
+dc.data$DATE <- as.Date(dc.data$DATE, format = "%Y/%m/%d")
+dc.data$YEAR <- substr(dc.data$DATE, 0, 4)
+dc.data$MONTH <- month(dc.data$DATE)
+dc.data$MONTHS <- months(dc.data$DATE)
+dc.data$DAY <- day(dc.data$DATE)
+dc.data$DOW <- weekdays(dc.data$DATE)
+dc.data$HOUR <- substr(dc.data$TIME, 0, 2)
+
+dc1 <- subset(dc.data, dc.data$OFFENSE == 'ROBBERY' &
+                dc.data$SHIFT == 'DAY')
+dc2 <- subset(dc.data, dc.data$OFFENSE == 'xxx' &
+                dc.data$SHIFT == 'EVENING')
+dc3 <- subset(dc.data, dc.data$OFFENSE == 'yyy' &
+                dc.data$SHIFT == 'MIDNIGHT')
+
+dc.roads <- roads("DC", "District of Columbia")
+dc.roads.major <- dc.roads %>%  filter(RTTYP %in% c("I","S","U"))
+dc.outline <- county_subdivisions("DC", "District of Columbia")
+dc.placenames <- landmarks("DC")
+dc.water <- area_water("DC", "District of Columbia")
+dc.water <- filter(dc.water, AWATER >= 1000)
+```
+
+# Forecast 1
+```{r}
+
+```
+
+My analysis will go here.
+
+# Forecast 2
+```{r}
+
+```
+
+# Forecast 3
+
