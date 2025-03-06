@@ -1,0 +1,360 @@
+---
+title: "Crime Analysis Project 3"
+author: "Your Name"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document
+---
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE,results='hide'}
+library(tidyverse)
+library(sf)
+library(tigris)
+library(zoo)
+library(aTSA)
+library(tseries)
+library(forecast)
+library(data.table)
+
+url <- "https://opendata.dc.gov/datasets/DCGIS::crime-incidents-in-"
+years <- c(2008:2025)
+full.urls <- paste0(url, years, ".csv")
+dc.data <- data.frame()
+
+for(file in full.urls) {
+  tmp.data <- read.csv(file, stringsAsFactors = FALSE)
+  dc.data <- rbind(tmp.data, dc.data)
+}
+
+dc.data <- separate(dc.data, REPORT_DAT, into = c("DATE", "TIME"), sep = " ")
+dc.data$DATE <- as.Date(dc.data$DATE, format = "%Y/%m/%d")
+dc.data$YEAR <- substr(dc.data$DATE, 0, 4)
+dc.data$MONTH <- month(dc.data$DATE)
+dc.data$MONTHS <- months(dc.data$DATE)
+dc.data$DAY <- day(dc.data$DATE)
+dc.data$DOW <- weekdays(dc.data$DATE)
+dc.data$HOUR <- substr(dc.data$TIME, 0, 2)
+
+dc1 <- subset(dc.data, dc.data$OFFENSE == 'ROBBERY' &
+                dc.data$SHIFT == 'DAY')
+dc2 <- subset(dc.data, dc.data$OFFENSE == 'ROBBERY' &
+                dc.data$SHIFT == 'EVENING')
+dc3 <- subset(dc.data, dc.data$OFFENSE == 'ROBBERY' &
+                dc.data$SHIFT == 'MIDNIGHT')
+
+dc.roads <- roads("DC", "District of Columbia")
+dc.roads.major <- dc.roads %>%  filter(RTTYP %in% c("I","S","U"))
+dc.outline <- county_subdivisions("DC", "District of Columbia")
+dc.placenames <- landmarks("DC")
+dc.water <- area_water("DC", "District of Columbia")
+dc.water <- filter(dc.water, AWATER >= 1000)
+```
+
+# Day Shift Robbery Forecast
+```{r, echo=FALSE, warning=FALSE,message=FALSE,results='hide'}
+crime <- dc1 %>%
+  group_by(DATE) %>%
+  summarise(COUNT = n())
+
+crime <- crime %>%
+  complete(DATE = seq.Date(min(DATE), max(DATE), by = "day")) %>%
+  mutate(WEEKDAY = lubridate::wday(DATE, label = T, week_start = 1), 
+         MONTH = lubridate::month(DATE, label = T, abbr = F),
+         WEEK = isoweek(DATE),
+         DAY = day(DATE),
+         YEAR = year(DATE))
+crime <- replace(crime, is.na(crime), 0)
+cleaned.data <- zoo(crime$COUNT, 
+                    seq(from = as.Date(min(crime$DATE)), 
+                        to = as.Date(max(crime$DATE)-1), by = 1))
+arima.data <- auto.arima(cleaned.data, 
+                         d = 1, max.p = 10, max.q = 1, 
+                         seasonal = T)
+forecast.window <- as.numeric(as.Date("2025-12-31")-max(crime$DATE))
+forecast.2025 <- forecast(arima.data, h=forecast.window)
+
+forecast.values <- as.data.frame(forecast.2025$mean)
+forecast.values$ID <- seq.int(nrow(forecast.values))
+forecast.upper <- as.data.frame(forecast.2025$upper)
+forecast.upper$ID <- seq.int(nrow(forecast.upper))
+forecast.values <- forecast.values %>%
+  left_join(forecast.upper, by = 'ID')
+colnames(forecast.values) <- c("MEAN", "ID", "CI80", "CI95")
+forecast.values$DATE <- as.Date(max(crime$DATE) + forecast.values$ID)
+forecast.values$MONTH <- months(forecast.values$DATE)
+
+forecast.values.2025 <- subset(forecast.values, forecast.values$DATE > '2025-03-31')
+forecast.months <- forecast.values.2025 %>%
+  group_by(MONTH) %>%
+  summarise(MEAN = round(sum(MEAN),0), FORECAST.95 = round(sum(CI95),0), FORECAST.80 = round(sum(CI80),0))
+forecast.months$DIFF <- forecast.months$FORECAST.95 - forecast.months$FORECAST.80
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+forecast.months$MONTH <- factor(forecast.months$MONTH, levels = forecast.months$MONTH)
+forecast.long <- pivot_longer(forecast.months, cols = c(FORECAST.80, DIFF), 
+                              names_to = "Category", values_to = "Value")
+forecast.long$Category <- gsub("DIFF", "95% Confidence Interval", forecast.long$Category)
+forecast.long$Category <- gsub("FORECAST.80", "80% Confidence Interval", forecast.long$Category)
+
+ggplot(forecast.long, aes(x = MONTH, y = Value, fill = fct_rev(Category))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Value), size = 3, colour = 'white', position = position_stack(vjust = 0.5)) + 
+  labs(title = "Washington D.C. 2025 Monthly Forecast Upper Bounds", 
+       x = "Month", 
+       y = "Crime Count",
+       subtitle = "subtitle whatever") +
+  scale_fill_manual(values = c("95% Confidence Interval" = "blue",
+                               "80% Confidence Interval" = "grey"),
+                    name = "Forecasts") +
+  scale_x_discrete(limits = c("April", "May", "June", "July", "August",
+                              "September", "October", "November", "December")) + 
+  coord_cartesian(ylim = c(0, 125)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+crime.year.day.time <- dc1 %>%
+  group_by(YEAR, MONTH, DOW, HOUR) %>%
+  summarise(COUNT = n())
+crime.year.day.time <- replace(crime.year.day.time, 
+                               is.na(crime.year.day.time), 0)
+
+ggplot(crime.year.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile() + 
+  scale_fill_gradient(low = "lightblue", high = "darkred") +
+  coord_fixed() +
+  scale_y_discrete(limits = c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")) +
+  theme(axis.text.x = element_text(angle = 90, size = 5)) + 
+  theme(axis.text.y = element_text(size = 5)) + 
+  facet_wrap(~ YEAR, nrow = 4) +
+    labs(title = "My Topology",
+       x = "Hour",
+       y = "Day")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot() +
+  geom_sf(data = dc.outline$geometry, fill = "transparent", 
+          linewidth = 1, color = "black") +
+  geom_sf(data = dc.roads$geometry, alpha = 0.1) +
+  geom_sf(data = dc.water$geometry, fill = "lightblue") +
+  geom_hex(aes(x = LONGITUDE, y = LATITUDE), data = dc1, bins = 8,
+           alpha = 0.5) +
+  scale_fill_continuous(type = "viridis") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.background = element_blank()) +
+  facet_wrap(~YEAR)
+```
+
+My analysis will go here.
+
+# Evening Shift Robbery Forecast
+
+```{r, echo=FALSE, warning=FALSE,message=FALSE,results='hide'}
+crime <- dc2 %>%
+  group_by(DATE) %>%
+  summarise(COUNT = n())
+
+crime <- crime %>%
+  complete(DATE = seq.Date(min(DATE), max(DATE), by = "day")) %>%
+  mutate(WEEKDAY = lubridate::wday(DATE, label = T, week_start = 1), 
+         MONTH = lubridate::month(DATE, label = T, abbr = F),
+         WEEK = isoweek(DATE),
+         DAY = day(DATE),
+         YEAR = year(DATE))
+crime <- replace(crime, is.na(crime), 0)
+cleaned.data <- zoo(crime$COUNT, 
+                    seq(from = as.Date(min(crime$DATE)), 
+                        to = as.Date(max(crime$DATE)-1), by = 1))
+arima.data <- auto.arima(cleaned.data, 
+                         d = 1, max.p = 5, max.q = 1, 
+                         seasonal = T)
+forecast.window <- as.numeric(as.Date("2025-12-31")-max(crime$DATE))
+forecast.2025 <- forecast(arima.data, h=forecast.window)
+
+forecast.values <- as.data.frame(forecast.2025$mean)
+forecast.values$ID <- seq.int(nrow(forecast.values))
+forecast.upper <- as.data.frame(forecast.2025$upper)
+forecast.upper$ID <- seq.int(nrow(forecast.upper))
+forecast.values <- forecast.values %>%
+  left_join(forecast.upper, by = 'ID')
+colnames(forecast.values) <- c("MEAN", "ID", "CI80", "CI95")
+forecast.values$DATE <- as.Date(max(crime$DATE) + forecast.values$ID)
+forecast.values$MONTH <- months(forecast.values$DATE)
+
+forecast.values.2025 <- subset(forecast.values, forecast.values$DATE > '2025-03-31')
+forecast.months <- forecast.values.2025 %>%
+  group_by(MONTH) %>%
+  summarise(MEAN = round(sum(MEAN),0), FORECAST.95 = round(sum(CI95),0), FORECAST.80 = round(sum(CI80),0))
+forecast.months$DIFF <- forecast.months$FORECAST.95 - forecast.months$FORECAST.80
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+forecast.months$MONTH <- factor(forecast.months$MONTH, levels = forecast.months$MONTH)
+forecast.long <- pivot_longer(forecast.months, cols = c(FORECAST.80, DIFF), 
+                              names_to = "Category", values_to = "Value")
+forecast.long$Category <- gsub("DIFF", "95% Confidence Interval", forecast.long$Category)
+forecast.long$Category <- gsub("FORECAST.80", "80% Confidence Interval", forecast.long$Category)
+
+ggplot(forecast.long, aes(x = MONTH, y = Value, fill = fct_rev(Category))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Value), size = 3, colour = 'white', position = position_stack(vjust = 0.5)) + 
+  labs(title = "Washington D.C. 2025 Monthly Forecast Upper Bounds", 
+       x = "Month", 
+       y = "Crime Count",
+       subtitle = "subtitle whatever") +
+  scale_fill_manual(values = c("95% Confidence Interval" = "blue",
+                               "80% Confidence Interval" = "grey"),
+                    name = "Forecasts") +
+  scale_x_discrete(limits = c("April", "May", "June", "July", "August",
+                              "September", "October", "November", "December")) + 
+  coord_cartesian(ylim = c(0, 250)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+crime.year.day.time <- dc2 %>%
+  group_by(YEAR, MONTH, DOW, HOUR) %>%
+  summarise(COUNT = n())
+crime.year.day.time <- replace(crime.year.day.time, 
+                               is.na(crime.year.day.time), 0)
+
+ggplot(crime.year.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile() + 
+  scale_fill_gradient(low = "lightblue", high = "darkred") +
+  coord_fixed() +
+  scale_y_discrete(limits = c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")) +
+  theme(axis.text.x = element_text(angle = 90, size = 5)) + 
+  theme(axis.text.y = element_text(size = 5)) + 
+  facet_wrap(~ YEAR, nrow = 4) +
+    labs(title = "My Topology",
+       x = "Hour",
+       y = "Day")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot() +
+  geom_sf(data = dc.outline$geometry, fill = "transparent", 
+          linewidth = 1, color = "black") +
+  geom_sf(data = dc.roads$geometry, alpha = 0.1) +
+  geom_sf(data = dc.water$geometry, fill = "lightblue") +
+  geom_hex(aes(x = LONGITUDE, y = LATITUDE), data = dc2, bins = 8,
+           alpha = 0.5) +
+  scale_fill_continuous(type = "viridis") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.background = element_blank()) +
+  facet_wrap(~YEAR)
+```
+
+# Midnight Shift Robbery Forecast
+```{r, echo=FALSE, warning=FALSE,message=FALSE,results='hide'}
+crime <- dc3 %>%
+  group_by(DATE) %>%
+  summarise(COUNT = n())
+
+crime <- crime %>%
+  complete(DATE = seq.Date(min(DATE), max(DATE), by = "day")) %>%
+  mutate(WEEKDAY = lubridate::wday(DATE, label = T, week_start = 1), 
+         MONTH = lubridate::month(DATE, label = T, abbr = F),
+         WEEK = isoweek(DATE),
+         DAY = day(DATE),
+         YEAR = year(DATE))
+crime <- replace(crime, is.na(crime), 0)
+cleaned.data <- zoo(crime$COUNT, 
+                    seq(from = as.Date(min(crime$DATE)), 
+                        to = as.Date(max(crime$DATE)-1), by = 1))
+arima.data <- auto.arima(cleaned.data, 
+                         d = 1, max.p = 5, max.q = 1, 
+                         seasonal = T)
+forecast.window <- as.numeric(as.Date("2025-12-31")-max(crime$DATE))
+forecast.2025 <- forecast(arima.data, h=forecast.window)
+
+forecast.values <- as.data.frame(forecast.2025$mean)
+forecast.values$ID <- seq.int(nrow(forecast.values))
+forecast.upper <- as.data.frame(forecast.2025$upper)
+forecast.upper$ID <- seq.int(nrow(forecast.upper))
+forecast.values <- forecast.values %>%
+  left_join(forecast.upper, by = 'ID')
+colnames(forecast.values) <- c("MEAN", "ID", "CI80", "CI95")
+forecast.values$DATE <- as.Date(max(crime$DATE) + forecast.values$ID)
+forecast.values$MONTH <- months(forecast.values$DATE)
+
+forecast.values.2025 <- subset(forecast.values, forecast.values$DATE > '2025-03-31')
+forecast.months <- forecast.values.2025 %>%
+  group_by(MONTH) %>%
+  summarise(MEAN = round(sum(MEAN),0), FORECAST.95 = round(sum(CI95),0), FORECAST.80 = round(sum(CI80),0))
+forecast.months$DIFF <- forecast.months$FORECAST.95 - forecast.months$FORECAST.80
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+forecast.months$MONTH <- factor(forecast.months$MONTH, levels = forecast.months$MONTH)
+forecast.long <- pivot_longer(forecast.months, cols = c(FORECAST.80, DIFF), 
+                              names_to = "Category", values_to = "Value")
+forecast.long$Category <- gsub("DIFF", "95% Confidence Interval", forecast.long$Category)
+forecast.long$Category <- gsub("FORECAST.80", "80% Confidence Interval", forecast.long$Category)
+
+ggplot(forecast.long, aes(x = MONTH, y = Value, fill = fct_rev(Category))) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = Value), size = 3, colour = 'white', position = position_stack(vjust = 0.5)) + 
+  labs(title = "Washington D.C. 2025 Monthly Forecast Upper Bounds", 
+       x = "Month", 
+       y = "Crime Count",
+       subtitle = "subtitle whatever") +
+  scale_fill_manual(values = c("95% Confidence Interval" = "blue",
+                               "80% Confidence Interval" = "grey"),
+                    name = "Forecasts") +
+  scale_x_discrete(limits = c("April", "May", "June", "July", "August",
+                              "September", "October", "November", "December")) + 
+  coord_cartesian(ylim = c(0, 300)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+crime.year.day.time <- dc3 %>%
+  group_by(YEAR, MONTH, DOW, HOUR) %>%
+  summarise(COUNT = n())
+crime.year.day.time <- replace(crime.year.day.time, 
+                               is.na(crime.year.day.time), 0)
+
+ggplot(crime.year.day.time, aes(HOUR, DOW, fill = COUNT)) +
+  geom_tile() + 
+  scale_fill_gradient(low = "lightblue", high = "darkred") +
+  coord_fixed() +
+  scale_y_discrete(limits = c("Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday")) +
+  theme(axis.text.x = element_text(angle = 90, size = 5)) + 
+  theme(axis.text.y = element_text(size = 5)) + 
+  facet_wrap(~ YEAR, nrow = 4) +
+  labs(title = "My Topology",
+       x = "Hour",
+       y = "Day")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot() +
+  geom_sf(data = dc.outline$geometry, fill = "transparent", 
+          linewidth = 1, color = "black") +
+  geom_sf(data = dc.roads$geometry, alpha = 0.1) +
+  geom_sf(data = dc.water$geometry, fill = "lightblue") +
+  geom_hex(aes(x = LONGITUDE, y = LATITUDE), data = dc3, bins = 8,
+           alpha = 0.5) +
+  scale_fill_continuous(type = "viridis") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        axis.title = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.background = element_blank()) +
+  facet_wrap(~YEAR)
+```
+
