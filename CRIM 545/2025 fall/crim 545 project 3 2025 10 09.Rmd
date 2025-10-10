@@ -1,0 +1,172 @@
+---
+title: "CRIM 545 Project 3 Template"
+author: "Your Name"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: html_document
+---
+
+```{r, warning=FALSE, echo=FALSE, message=FALSE}
+# Step 0 
+library(tidyverse)
+library(leaflet)
+library(sf)
+library(tigris)
+library(zoo)
+library(aTSA)
+library(tseries)
+library(forecast)
+library(data.table)
+
+# Step 1
+url <- "https://opendata.dc.gov/datasets/DCGIS::crime-incidents-in-"
+years <- c(2008:2025)
+full.urls <- paste0(url, years, ".csv")
+dc.data <- data.frame()
+
+for(file in full.urls) {
+  tmp.data <- read.csv(file, stringsAsFactors = FALSE)
+  dc.data <- rbind(tmp.data, dc.data)
+}
+
+rm(tmp.data)
+
+dc.data <- separate(dc.data, REPORT_DAT, into = c("DATE", "TIME"), sep = " ")
+dc.data$DATE <- as.Date(dc.data$DATE, format = "%Y/%m/%d")
+
+dc.data$YEAR <- substr(dc.data$DATE, 0, 4)
+dc.data$MONTH <- month(dc.data$DATE)
+dc.data$DAY <- day(dc.data$DATE)
+dc.data$DOW <- weekdays(dc.data$DATE)
+dc.data$HOUR <- substr(dc.data$TIME, 0, 2)
+
+dc1 <- subset(dc.data, dc.data$OFFENSE == 'xxx' & dc.data$SHIFT == 'DAY')
+dc2 <- subset(dc.data, dc.data$OFFENSE == 'xxx' & dc.data$SHIFT == 'EVENING')
+dc3 <- subset(dc.data, dc.data$OFFENSE == 'xxx' & dc.data$SHIFT == 'MIDNIGHT')
+```
+
+## Day Shift Crime ___
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+crime <- dc1 %>%
+  group_by(DATE) %>%
+  summarise(COUNT = n())
+
+crime <- crime %>%
+  complete(DATE = seq.Date(min(DATE), max(DATE), by = "day")) %>%
+  mutate(WEEKDAY = lubridate::wday(DATE, label = T, week_start = 1), 
+         MONTH = lubridate::month(DATE, label = T, abbr = F),
+         WEEK = isoweek(DATE),
+         DAY = day(DATE),
+         YEAR = year(DATE))
+crime <- replace(crime, is.na(crime), 0)
+
+cleaned.data <- zoo(crime$COUNT, 
+                    seq(from = as.Date(min(crime$DATE)), 
+                        to = as.Date(max(crime$DATE)-1), by = 1))
+
+arima.data <- auto.arima(cleaned.data, d = 1, max.p = 5, max.q = 1, seasonal = T)
+
+forecast.window <- as.numeric(as.Date("2026-12-31")-max(crime$DATE))
+forecast.2026 <- forecast(arima.data, h=forecast.window)
+
+forecast.values <- as.data.frame(forecast.2026$mean)
+forecast.values$ID <- seq.int(nrow(forecast.values))
+forecast.upper <- as.data.frame(forecast.2026$upper)
+forecast.upper$ID <- seq.int(nrow(forecast.upper))
+forecast.values <- forecast.values %>%
+  left_join(forecast.upper, by = 'ID')
+colnames(forecast.values) <- c("MEAN", "ID", "CI80", "CI95")
+forecast.values$DATE <- as.Date(max(crime$DATE) + forecast.values$ID)
+forecast.values$MONTH <- months(forecast.values$DATE)
+
+forecast.values.2026 <- subset(forecast.values, forecast.values$DATE > '2025-12-31')
+forecast.months <- forecast.values.2026 %>%
+  group_by(MONTH) %>%
+  summarise(MEAN = round(sum(MEAN),0), FORECAST.95 = round(sum(CI95),0), FORECAST.80 = round(sum(CI80),0))
+forecast.months$DIFF <- forecast.months$FORECAST.95 - forecast.months$FORECAST.80
+
+### new stats
+forecast.months$COMP <- round(forecast.months$MEAN-mean(forecast.months$MEAN),2)
+forecast.months$COMP95 <- round(forecast.months$FORECAST.95-mean(forecast.months$FORECAST.95),2)
+```
+
+#### Graph
+```{r}
+
+```
+
+#### Map
+```{r}
+
+```
+
+#### Temporal Topology
+```{r}
+
+```
+
+#### Analysis
+One paragraph (6-8 sentences) explaining the findings of your forecast, including where and when you expect this crime to occur in D.C. during 2026
+
+## Evening Shift Crime ___
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+crime <- dc2 %>%
+  group_by(DATE) %>%
+  summarise(COUNT = n())
+
+crime <- crime %>%
+  complete(DATE = seq.Date(min(DATE), max(DATE), by = "day")) %>%
+  mutate(WEEKDAY = lubridate::wday(DATE, label = T, week_start = 1), 
+         MONTH = lubridate::month(DATE, label = T, abbr = F),
+         WEEK = isoweek(DATE),
+         DAY = day(DATE),
+         YEAR = year(DATE))
+crime <- replace(crime, is.na(crime), 0)
+
+cleaned.data <- zoo(crime$COUNT, 
+                    seq(from = as.Date(min(crime$DATE)), 
+                        to = as.Date(max(crime$DATE)-1), by = 1))
+
+arima.data <- auto.arima(cleaned.data, d = 1, max.p = 5, max.q = 1, seasonal = T)
+
+forecast.window <- as.numeric(as.Date("2026-12-31")-max(crime$DATE))
+forecast.2026 <- forecast(arima.data, h=forecast.window)
+
+forecast.values <- as.data.frame(forecast.2026$mean)
+forecast.values$ID <- seq.int(nrow(forecast.values))
+forecast.upper <- as.data.frame(forecast.2026$upper)
+forecast.upper$ID <- seq.int(nrow(forecast.upper))
+forecast.values <- forecast.values %>%
+  left_join(forecast.upper, by = 'ID')
+colnames(forecast.values) <- c("MEAN", "ID", "CI80", "CI95")
+forecast.values$DATE <- as.Date(max(crime$DATE) + forecast.values$ID)
+forecast.values$MONTH <- months(forecast.values$DATE)
+
+forecast.values.2026 <- subset(forecast.values, forecast.values$DATE > '2025-12-31')
+forecast.months <- forecast.values.2026 %>%
+  group_by(MONTH) %>%
+  summarise(MEAN = round(sum(MEAN),0), FORECAST.95 = round(sum(CI95),0), FORECAST.80 = round(sum(CI80),0))
+forecast.months$DIFF <- forecast.months$FORECAST.95 - forecast.months$FORECAST.80
+
+### new stats
+forecast.months$COMP <- round(forecast.months$MEAN-mean(forecast.months$MEAN),2)
+forecast.months$COMP95 <- round(forecast.months$FORECAST.95-mean(forecast.months$FORECAST.95),2)
+```
+
+#### Graph
+```{r}
+
+```
+
+#### Map
+```{r}
+
+```
+
+#### Temporal Topology
+```{r}
+
+```
+
+#### Analysis
+One paragraph (6-8 sentences) explaining the findings of your forecast, including where and when you expect this crime to occur in D.C. during 2026
+
