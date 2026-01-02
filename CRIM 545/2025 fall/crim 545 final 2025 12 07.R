@@ -188,4 +188,12 @@ ggplot(forecast.months, aes(x = MONTH, y = MEAN)) +
        x = "Month", 
        y = "Crime Count")
 
+###### if you make hotspots maps, remove any missing locations
+
+calls.enhance <- read.csv("/Users/matthewdanna/Downloads/calls time 2023-2025 NOV.csv", stringsAsFactors = FALSE)
+larceny.data <- subset(calls.enhance, calls.enhance$type == 'LARCENY')
+larceny.map <- subset(larceny.data, !is.na(larceny.data$lat))
+
+
+
 
